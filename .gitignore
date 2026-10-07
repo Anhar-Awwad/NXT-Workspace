@@ -1,0 +1,17 @@
+nginx/certs
+*.key
+*.pem
+*.crt
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.terraform.lock.hcl
+

@@ -1,0 +1,194 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Azure VM
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Check VM secret
+        shell: bash
+        env:
+          VM_NAME: ${{ secrets.AZURE_VM_NAME }}
+        run: |
+          if [ -z "$VM_NAME" ]; then
+            echo "VM secret is EMPTY"
+            exit 1
+          else
+            echo "VM secret is SET"
+          fi
+
+      - name: Test Azure Run Command
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az vm run-command invoke \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ secrets.AZURE_VM_NAME }}" \
+              --command-id RunShellScript \
+              --scripts "echo GITHUB_ACTIONS_RUN_COMMAND_TEST"
+      # All VM operations use Azure Run Command.
+      # No SSH port or deploy key is required.
+      # Bootstrap installs Docker and clones the repo using GITHUB_TOKEN.
+      - name: Bootstrap VM (Docker + repo)
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az vm run-command invoke \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ secrets.AZURE_VM_NAME }}" \
+              --command-id RunShellScript \
+              --parameters "${{ github.token }}" "${{ github.repository }}" \
+              --scripts '
+                set -e
+                GITHUB_TOKEN="$1"
+                GITHUB_REPO="$2"
+
+                if ! command -v docker &>/dev/null; then
+                  echo "Installing Docker..."
+                  apt-get update -qq
+                  curl -fsSL https://get.docker.com | sh
+                  usermod -aG docker azureuser
+                fi
+
+                if [ ! -d /opt/nextcloud-rag-sda-bootcamp-project/.git ]; then
+                  echo "Cloning repo (first deploy)..."
+                  mkdir -p /opt/nextcloud-rag-sda-bootcamp-project
+                  chown azureuser:azureuser /opt/nextcloud-rag-sda-bootcamp-project
+                  sudo -u azureuser git clone \
+                    "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git" \
+                    /opt/nextcloud-rag-sda-bootcamp-project
+                fi
+              '
+
+      # Step 2: Build deploy script
+      - name: Build deploy script
+        run: |
+          python3 - << 'PYEOF'
+          import os
+          import base64
+
+          env_vars = {
+              "POSTGRES_HOST": "nextcloud-db",
+              "POSTGRES_DB": "nextcloud",
+              "POSTGRES_USER": "ncadmin",
+              "POSTGRES_PASSWORD": os.environ["POSTGRES_PASSWORD"],
+              "POSTGRES_SSLMODE": "disable",
+              "LOCAL_NC_DB_PORT": "5434",
+              "NEXTCLOUD_ADMIN_USER": "admin",
+              "NEXTCLOUD_ADMIN_PASSWORD": os.environ["NEXTCLOUD_ADMIN_PASSWORD"],
+              "NEXTCLOUD_TRUSTED_DOMAINS": "localhost 127.0.0.1 nextcloud " + os.environ["VM_HOST"],
+              "HTTP_PORT": "80",
+              "HTTPS_PORT": "443",
+              "NC_DB_CONTAINER_NAME": "nextcloud_postgres",
+              "NC_CONTAINER_NAME": "nextcloud_app",
+              "NGINX_CONTAINER_NAME": "nextcloud_nginx",
+              "DB_NAME": "vector_db",
+              "DB_USER": "postgres",
+              "DB_PASSWORD": os.environ["POSTGRES_PASSWORD"],
+              "RAG_DB_HOST_PORT": "6543",
+              "RAG_DB_CONTAINER_NAME": "agentic_rag_postgres",
+              "APP_ENV": "production",
+              "APP_HOST": "0.0.0.0",
+              "APP_PORT": "8058",
+              "LOG_LEVEL": "INFO",
+              "RAG_API_PORT": "8058",
+              "RAG_API_CONTAINER_NAME": "agentic_rag_api",
+              "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
+              "NXT_RAG_INTERNAL_TOKEN": os.environ["NXT_RAG_INTERNAL_TOKEN"],
+              "LLM_CHOICE": "gpt-4o-mini",
+              "EMBEDDING_MODEL": "text-embedding-3-small",
+              "SERVER_PORT": "8501",
+              "SERVER_HOST": "0.0.0.0",
+              "RAG_UI_PORT": "8501",
+              "RAG_UI_CONTAINER_NAME": "agentic_rag_ui",
+              "NEXTCLOUD_URL": "http://nextcloud",
+              "NEXTCLOUD_SERVICE_USER": "admin",
+              "NEXTCLOUD_SERVICE_PASSWORD": os.environ["NEXTCLOUD_ADMIN_PASSWORD"],
+              "NEXTCLOUD_INGEST_GROUPS": "Executive,Human-Resources,Finance,IT-Cybersecurity,Legal-Compliance,Operations,Sales-BD",
+              "NEXTCLOUD_POLL_INTERVAL_SECONDS": "300",
+              "OBJECTSTORE_AZURE_ACCOUNT": "",
+              "OBJECTSTORE_AZURE_KEY": "",
+              "OBJECTSTORE_AZURE_CONTAINER": "",
+          }
+
+          env_b64 = base64.b64encode(
+              "\n".join(f"{k}={v}" for k, v in env_vars.items()).encode()
+          ).decode()
+
+          token_b64 = base64.b64encode(
+              os.environ["GITHUB_TOKEN"].encode()
+          ).decode()
+
+          repo_b64 = base64.b64encode(
+              os.environ["GITHUB_REPOSITORY"].encode()
+          ).decode()
+
+          script = f"""#!/bin/bash
+          set -e
+
+          mkdir -p /opt/nextcloud-rag-sda-bootcamp-project/deployment
+          echo '{env_b64}' | base64 -d > /opt/nextcloud-rag-sda-bootcamp-project/deployment/.env
+
+          GITHUB_TOKEN=$(echo '{token_b64}' | base64 -d)
+          GITHUB_REPO=$(echo '{repo_b64}' | base64 -d)
+
+          export HOME=/root
+
+          git config --global --add safe.directory /opt/nextcloud-rag-sda-bootcamp-project
+
+          cd /opt/nextcloud-rag-sda-bootcamp-project
+
+          git remote set-url origin "https://x-access-token:$GITHUB_TOKEN@github.com/$GITHUB_REPO.git"
+          git fetch origin main
+          git reset --hard origin/main
+          git remote set-url origin "https://github.com/$GITHUB_REPO.git"
+
+          echo "Repo at: $(git log --oneline -1)"
+
+          bash scripts/deploy.sh
+          """
+
+          with open("deploy.sh", "w") as f:
+              f.write(script)
+
+          print("Deploy script built.")
+          PYEOF
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          NEXTCLOUD_ADMIN_PASSWORD: ${{ secrets.NEXTCLOUD_ADMIN_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NXT_RAG_INTERNAL_TOKEN: ${{ secrets.NXT_RAG_INTERNAL_TOKEN }}
+          VM_HOST: ${{ secrets.VM_HOST }}
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # Step 3: Deploy
+      - name: Deploy stack
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az vm run-command invoke \
+              --resource-group "${{ secrets.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ secrets.AZURE_VM_NAME }}" \
+              --command-id RunShellScript \
+              --scripts @${{ github.workspace }}/deploy.sh

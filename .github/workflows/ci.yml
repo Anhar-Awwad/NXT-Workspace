@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev, testing]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ──────────────────────────────────────────
+  # 1. Terraform — validate infrastructure
+  # ──────────────────────────────────────────
+  terraform:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: infrastructure/terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init -backend=false   # no remote backend needed for validation
+
+      - name: Terraform Validate
+        run: terraform validate
+
+  # ──────────────────────────────────────────
+  # 2. Docker Compose — validate config
+  # ──────────────────────────────────────────
+  docker-compose-check:
+    name: Docker Compose Config Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare test environment
+        run: |
+          cp deployment/.env.example deployment/.env
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci-test-password/' deployment/.env
+          sed -i 's/^NEXTCLOUD_ADMIN_PASSWORD=.*/NEXTCLOUD_ADMIN_PASSWORD=ci-test-password/' deployment/.env
+          sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=ci-test-password/' deployment/.env
+      - name: Validate docker-compose config
+        run: docker compose -f deployment/docker-compose.yml config --quiet

@@ -1,0 +1,488 @@
+/* =========================================================
+   NXT AI — Workspace UI
+   ========================================================= */
+
+#nxt-page {
+    width: 100%;
+    height: calc(100vh - 60px);
+    padding: 28px 32px 24px;
+    box-sizing: border-box;
+
+    /* الصفحة نفسها تسوي scroll إذا المحتوى أطول من الشاشة */
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    display: flex;
+    flex-direction: column;
+}
+
+.nxt-shell {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+
+    /* يكبر ليملأ الشاشة، وما ينضغط أصغر من محتواه */
+    flex: 1 0 auto;
+
+    display: flex;
+    flex-direction: column;
+}
+
+/* =========================================================
+   Header
+   ========================================================= */
+
+.nxt-header {
+    margin-bottom: 24px;
+    flex-shrink: 0;
+    text-align: center;
+
+}
+
+.nxt-brand {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    color: #2563EB;
+    text-transform: uppercase;
+}
+
+.nxt-header h1 {
+    margin: 7px 0 8px;
+    font-size: 38px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: var(--color-main-text);
+}
+
+.nxt-header p {
+    margin: 0;
+    max-width: 760px;
+    color: var(--color-text-maxcontrast);
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+/* =========================================================
+   Health Status
+   ========================================================= */
+
+.nxt-health {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 12px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.nxt-health-checking {
+    background: var(--color-background-hover);
+    color: var(--color-text-maxcontrast);
+}
+
+.nxt-health-ok {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.nxt-health-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.nxt-health-error {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* =========================================================
+   Main Chat
+   ========================================================= */
+
+.nxt-chat {
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+
+    flex: 1;
+    min-height: 420px;
+
+    display: flex;
+    flex-direction: column;
+
+    background: var(--color-main-background);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+/* =========================================================
+   Messages
+   ========================================================= */
+
+.nxt-messages {
+    flex: 1;
+    min-height: 0;
+
+    padding: 28px;
+
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    box-sizing: border-box;
+}
+
+/* Welcome */
+
+.nxt-welcome {
+    max-width: 650px;
+    margin: 70px auto 40px;
+    text-align: center;
+}
+
+.nxt-welcome-icon {
+    width: 54px;
+    height: 54px;
+    margin: 0 auto 18px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 14px;
+
+    background: #2563EB;
+    color: #FFFFFF;
+
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+
+    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.20);
+}
+
+.nxt-welcome-title {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--color-main-text);
+}
+
+.nxt-welcome-text {
+    color: var(--color-text-maxcontrast);
+    line-height: 1.7;
+    font-size: 15px;
+}
+
+/* =========================================================
+   Chat Messages
+   ========================================================= */
+
+.nxt-message {
+    display: flex;
+    width: 100%;
+    margin-bottom: 18px;
+}
+
+.nxt-message-user {
+    justify-content: flex-end;
+}
+
+.nxt-message-content {
+    max-width: 78%;
+    padding: 13px 17px;
+
+    border-radius: 14px;
+
+    line-height: 1.65;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.nxt-message-user .nxt-message-content {
+    background: #2563EB;
+    color: #FFFFFF;
+    border-bottom-right-radius: 4px;
+}
+
+.nxt-message-assistant .nxt-message-content {
+    background: var(--color-background-hover);
+    color: var(--color-main-text);
+    border-bottom-left-radius: 4px;
+}
+
+/* =========================================================
+   Sources
+   ========================================================= */
+
+.nxt-sources {
+    margin: 0 28px 16px;
+    padding: 14px  16px;
+
+    max-height: 170px;
+    overflow-y: auto;
+    flex-shrink: 0;
+
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+
+    background: var(--color-main-background);
+
+    box-sizing: border-box;
+}
+
+.nxt-sources-title {
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-main-text);
+}
+
+.nxt-source-item {
+    padding: 9px 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.nxt-source-item:first-child {
+    border-top: 0;
+}
+
+.nxt-source-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-main-text);
+}
+
+.nxt-source-path {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--color-text-maxcontrast);
+    word-break: break-word;
+}
+
+/* =========================================================
+   Input Area
+   ========================================================= */
+
+.nxt-input-area {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-shrink: 0;
+
+    padding: 16px;
+
+    border-top: 1px solid var(--color-border);
+    background: var(--color-main-background);
+
+    border-radius: 0 0 18px 18px;
+
+    box-sizing: border-box;
+}
+
+#nxt-message {
+    flex: 1;
+    min-width: 0;
+
+    min-height: 52px;
+    max-height: 140px;
+
+    resize: vertical;
+
+    padding: 15px 17px;
+
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+
+    box-sizing: border-box;
+
+    background: var(--color-main-background);
+    color: var(--color-main-text);
+
+    font-size: 14px;
+    line-height: 1.5;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#nxt-message::placeholder {
+    color: var(--color-text-maxcontrast);
+}
+
+#nxt-message:focus {
+    outline: none;
+    border-color: #2563EB;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+/* Send button */
+
+#nxt-send {
+    align-self: flex-end;
+
+    min-width: 96px;
+    height: 52px;
+
+    padding: 0 22px;
+
+    border: 0;
+    border-radius: 12px;
+
+    background: #2563EB;
+    color: #FFFFFF;
+
+    font-weight: 600;
+    font-size: 14px;
+
+    cursor: pointer;
+
+    transition:
+        background 0.15s ease,
+        transform 0.15s ease,
+        opacity 0.15s ease;
+}
+
+#nxt-send:hover {
+    background: #1d4ed8;
+}
+
+#nxt-send:active {
+    transform: translateY(1px);
+}
+
+#nxt-send:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* =========================================================
+   Scrollbar
+   ========================================================= */
+
+.nxt-messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+.nxt-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.nxt-messages::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 999px;
+}
+
+.nxt-messages::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-maxcontrast);
+}
+
+/* =========================================================
+   Responsive — Tablet
+   ========================================================= */
+
+@media (max-width: 1000px) {
+
+    #nxt-page {
+        padding: 24px 20px 20px;
+    }
+
+    .nxt-chat {
+        max-width: 100%;
+    }
+
+    .nxt-header h1 {
+        font-size: 30px;
+    }
+
+    .nxt-messages {
+        padding: 22px;
+    }
+
+    .nxt-message-content {
+        max-width: 86%;
+    }
+}
+
+/* =========================================================
+   Responsive — Mobile
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+    #nxt-page {
+        padding: 18px 14px 14px;
+    }
+
+    .nxt-header {
+        margin-bottom: 18px;
+    }
+
+    .nxt-header h1 {
+        font-size: 26px;
+    }
+
+    .nxt-header p {
+        font-size: 14px;
+    }
+
+    .nxt-chat {
+        border-radius: 14px;
+    }
+
+    .nxt-messages {
+        padding: 18px;
+    }
+
+    .nxt-welcome {
+        margin: 40px auto;
+    }
+
+    .nxt-welcome-icon {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 18px;
+        background: #2563EB;
+        color: #FFFFFF;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
+    }
+
+    .nxt-welcome-title {
+        font-size: 25px;
+    }
+
+    .nxt-welcome-text {
+        font-size: 14px;
+    }
+
+    .nxt-message-content {
+        max-width: 94%;
+    }
+
+    .nxt-input-area {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #nxt-message {
+        width: 100%;
+    }
+
+    #nxt-send {
+        width: 100%;
+    }
+
+    .nxt-sources {
+        margin: 0 18px 14px;
+        max-height: 140px;
+    }
+}

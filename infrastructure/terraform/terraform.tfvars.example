@@ -1,0 +1,12 @@
+subscription_id         = "SUBSCRIPTION_ID"
+resource_group_name     = "nextcloud-rg"
+location                = "westus"
+prefix                  = "nextcloud"
+vm_size                 = "Standard_D2s_v7"
+admin_username          = "azureuser"
+ssh_public_key_path     = "~/.ssh/id_rsa.pub"
+allowed_ssh_ip          = "PUBLIC_IP/32"
+
+postgres_admin_login    = "ncadmin"
+postgres_admin_password = "STRONG_PASSWORD"
+postgres_database_name  = "nextcloud"

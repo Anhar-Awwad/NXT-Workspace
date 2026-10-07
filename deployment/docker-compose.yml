@@ -1,0 +1,197 @@
+
+# Nextcloud PostgreSQL
+services:
+  nextcloud-db:
+    image: postgres:15-alpine
+    container_name: ${NC_DB_CONTAINER_NAME:-nextcloud_postgres}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nextcloud}
+      POSTGRES_USER: ${POSTGRES_USER:-ncadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - nextcloud_db_data:/var/lib/postgresql/data
+    ports:
+      - "${LOCAL_NC_DB_PORT:-5434}:5432"
+    networks:
+      - nextcloud-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ncadmin} -d ${POSTGRES_DB:-nextcloud}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL 17 clients can dump both local PG15 and Azure PG16
+  db-client:
+    image: postgres:17-alpine
+    profiles: [tools]
+    environment:
+      PGHOST: ${POSTGRES_HOST:-nextcloud-db}
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-nextcloud}
+      PGUSER: ${POSTGRES_USER:-ncadmin}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGSSLMODE: ${POSTGRES_SSLMODE:-prefer}
+    networks:
+      - nextcloud-network
+
+  # Nextcloud Application
+  nextcloud:
+    image: nextcloud:27
+    restart: always
+    container_name: ${NC_CONTAINER_NAME:-nextcloud_app}
+    environment:
+      NXT_RAG_INTERNAL_TOKEN: ${NXT_RAG_INTERNAL_TOKEN}
+
+      # Database connection
+      POSTGRES_HOST: ${POSTGRES_HOST:-nextcloud-db}
+      POSTGRES_DB: ${POSTGRES_DB:-nextcloud}
+      POSTGRES_USER: ${POSTGRES_USER:-ncadmin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # Admin credentials
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:-admin}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:?Set NEXTCLOUD_ADMIN_PASSWORD in the env file}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${NEXTCLOUD_TRUSTED_DOMAINS:-localhost 127.0.0.1 nextcloud}
+
+      # Azure Blob Storage
+      OBJECTSTORE_AZURE_ACCOUNT: ${OBJECTSTORE_AZURE_ACCOUNT:-}
+      OBJECTSTORE_AZURE_KEY: ${OBJECTSTORE_AZURE_KEY:-}
+      OBJECTSTORE_AZURE_CONTAINER: ${OBJECTSTORE_AZURE_CONTAINER:-nextcloud}
+    volumes:
+      - nextcloud_config:/var/www/html
+      - nextcloud_data:/var/www/html/data
+      - ./nextcloud/storage-guard.sh:/docker-entrypoint-hooks.d/before-starting/storage-guard.sh:ro
+    networks:
+    - nextcloud-network
+    depends_on:
+        nextcloud-db:
+         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/status.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Nextcloud Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    restart: always
+    container_name: ${NGINX_CONTAINER_NAME:-nextcloud_nginx}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      nextcloud:
+        condition: service_healthy
+    networks:
+      - nextcloud-network
+
+   # Agentic RAG Vector Database (PostgreSQL 17 + pgvector)
+  rag-db:
+    container_name: ${RAG_DB_CONTAINER_NAME:-agentic_rag_postgres}
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-vector_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "${RAG_DB_HOST_PORT:-6543}:5432"
+    volumes:
+      - rag_postgres_data:/var/lib/postgresql/data
+    networks:
+      - nextcloud-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-vector_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    # Agentic RAG API (FastAPI + Pydantic AI)
+  rag-api:
+    container_name: ${RAG_API_CONTAINER_NAME:-agentic_rag_api}
+    build:
+      context: ../agentic_rag_project
+      dockerfile: Dockerfile
+    image: agentic-rag-api:local
+    command: uvicorn agent.api:app --host ${APP_HOST:-0.0.0.0} --port ${APP_PORT:-8058}
+    restart: always
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_HOST: ${APP_HOST:-0.0.0.0}
+      APP_PORT: ${APP_PORT:-8058}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      NXT_RAG_INTERNAL_TOKEN: ${NXT_RAG_INTERNAL_TOKEN}
+      DB_HOST: rag-db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-vector_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-local-health-check-only}
+      LLM_CHOICE: ${LLM_CHOICE:-gpt-4o-mini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+
+      NEXTCLOUD_URL: ${NEXTCLOUD_URL:-http://nextcloud}
+      NEXTCLOUD_SERVICE_USER: ${NEXTCLOUD_SERVICE_USER:-admin}
+      NEXTCLOUD_SERVICE_PASSWORD: ${NEXTCLOUD_SERVICE_PASSWORD:-}
+      NEXTCLOUD_INGEST_GROUPS: ${NEXTCLOUD_INGEST_GROUPS:-Finance,Engineering}
+      NEXTCLOUD_POLL_INTERVAL_SECONDS: ${NEXTCLOUD_POLL_INTERVAL_SECONDS:-0}
+    volumes:
+      - ../agentic_rag_project/documents:/app/documents:ro
+      - rag_model_cache:/root/.cache/huggingface
+    ports:
+      - "${RAG_API_PORT:-8058}:${APP_PORT:-8058}"
+    depends_on:
+      rag-db:
+        condition: service_healthy
+      nextcloud:
+        condition: service_healthy
+    networks:
+      - nextcloud-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:${APP_PORT:-8058}/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    # Agentic RAG UI (Streamlit)
+  rag-ui:
+    container_name: ${RAG_UI_CONTAINER_NAME:-agentic_rag_ui}
+    build:
+      context: ../agentic_rag_project
+      dockerfile: Dockerfile
+    image: agentic-rag-ui:local
+    command: streamlit run ui/app.py --server.port=${SERVER_PORT:-8501} --server.address=${SERVER_HOST:-0.0.0.0}
+    restart: always
+    environment:
+      API_URL: http://rag-api:${APP_PORT:-8058}
+      SERVER_PORT: ${SERVER_PORT:-8501}
+      SERVER_HOST: ${SERVER_HOST:-0.0.0.0}
+    ports:
+      - "${RAG_UI_PORT:-8501}:${SERVER_PORT:-8501}"
+    depends_on:
+      rag-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:${SERVER_PORT:-8501}/_stcore/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - nextcloud-network
+
+volumes:
+  nextcloud_config:
+  nextcloud_data:
+  nextcloud_db_data:
+  rag_model_cache:
+  rag_postgres_data:
+
+networks:
+  nextcloud-network:
+    driver: bridge
